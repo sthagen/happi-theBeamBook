@@ -1,10 +1,10 @@
 ---
 
-name: Build
+name: Build PDF
 on:
   pull_request:
   push:
-    branchs:
+    branches:
       - master
 jobs:
   build:
@@ -13,9 +13,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2.4.0
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - name: install tools
         run: apk add git rsync erlang
+      - name: Sort out git ownership
+        run: git config --global --add safe.directory ${GITHUB_WORKSPACE}
       - name: build
         run: make
       - name: release

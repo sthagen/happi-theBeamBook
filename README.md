@@ -1,4 +1,5 @@
-[![Build Status](https://travis-ci.org/happi/theBeamBook.svg?branch=master)](https://travis-ci.org/happi/theBeamBook)
+![PDF Build](https://github.com/happi/theBeamBook/actions/workflows/build.yml/badge.svg)
+![Pages Build](https://github.com/happi/theBeamBook/actions/workflows/gh-pages.yml/badge.svg) 
 
 # The BEAM Book
 
@@ -141,7 +142,14 @@ that you have all the needed tools installed.
 
 ### Docker
 
-Docker images with asciidoctor is available here: [docker-asciidoctor](https://github.com/asciidoctor/docker-asciidoctor)
+You can build the project locally using docker by first building the docker image
+```
+make docker-build
+```
+And then building the project by
+```
+make docker
+```
 
 ### Linux
 WIP, to be updated
