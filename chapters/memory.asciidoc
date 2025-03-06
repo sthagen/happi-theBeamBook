@@ -302,7 +302,7 @@ in a singleblock carrier, which as the name implies on contains one
 block.
 
 What's considered a small and a large block is determined by the
-parameter _singleblock carrier threshold_ (+sbct+), see the list
+parameter _singleblock carrier threshold_ (`sbct`), see the list
 of system flags below.
 
 Most allocators also have one "main multiblock carrier" which is never
@@ -359,7 +359,7 @@ Are you intending for readers to take advantage of these allocation strategies i
 To find a free block of memory in a multi block carrier an
 allocation strategy is used. Each type of allocator has
 a default allocation strategy, but you can also set the
-allocation strategy with the +as+ flag.
+allocation strategy with the `as` flag.
 
 The Erlang Run-Time System Application Reference Manual lists
 the following allocation strategies:
@@ -427,7 +427,7 @@ This means that you can not use a temporary allocation over a BIF
 or NIF trap (yield).
 
 In a default R16 SMP system there is N+1 temp_alloc allocators where N
-is the number of schedulers. The temp_alloc uses the "A fit" (+af+)
+is the number of schedulers. The temp_alloc uses the "A fit" (`af`)
 strategy. Since the allocation pattern of the temp_alloc basically is
 that of a stack (mostly of size 0 or 1), this strategy works fine.
 
@@ -439,7 +439,7 @@ ENVIRONMENT, CON_VPRINT_BUF.
 
 For an up to date list of allocation types allocated with each
 allocator, see erl_alloc.types
-(e.g. +grep TEMPORARY erts/emulator/beam/erl_alloc.types+).
+(e.g. `+grep TEMPORARY erts/emulator/beam/erl_alloc.types+`).
 
 I will not go through each of these different types, but in
 general as you can guess by their names, they are temporary
@@ -548,8 +548,8 @@ the stack, the heap and the mailbox are managed.
 
 The default size of the stack and heap is 233 words. This default
 size can be changed globally when starting Erlang through the
-+pass:[+h]+ flag. You can also set the minimum heap size when starting
-a process with +spawn_opt+ by setting +min_heap_size+.
+`pass:[+h]` flag. You can also set the minimum heap size when starting
+a process with `spawn_opt` by setting `min_heap_size`.
 
 Erlang terms are tagged as we saw in xref:CH-TypeSystem[], and when
 they are stored on the heap they are either cons cells or boxed
@@ -564,67 +564,103 @@ only a tagged reference to that tuple is passed to the called
 function. When you build new terms you will also only use references
 to sub terms.
 
-For example if you have the string "hello" (which is the same as this
-list of integers: [104,101,108,108,111]) you would get a stack layout
+For example if you have the string `"hello"` (which is the same as the
+list of integers `[104,101,108,108,111]`) you would get a memory layout
 similar to:
 
 
 [[fig-list_layout]]
 [ditaa]
 ----
-         ADR                               BINARY  VALUE  +  DESCRIPTION
+        ADDR                               BINARY  VALUE + TAG
  hend ->     +-------- -------- -------- --------+
+             |                                   |
              |              ...                  |
-             |              ...                  |
-             |00000000 00000000 00000000 10000001| 128 + list tag  ---------------+
- stop ->     |                                   |                                |
-                                                                                  |
- htop ->     |                                   |                                |
-         132 |00000000 00000000 00000000 01111001| 120 + list tag  -------------- | -+
-         128 |00000000 00000000 00000110 10001111| (h) 104 bsl 4 + small int tag <+  |
-         124 |00000000 00000000 00000000 01110001| 112 + list tag  ----------------- | -+
-         120 |00000000 00000000 00000110 01011111| (e) 101 bsl 4 + small int tag <---+  |
-         116 |00000000 00000000 00000000 01110001| 112 + list tag  -------------------- | -+
-         112 |00000000 00000000 00000110 11001111| (l) 108 bsl 4 + small int tag <------+  |
-         108 |00000000 00000000 00000000 01110001|  96 + list tag  ----------------------- | -+
-         104 |00000000 00000000 00000110 11001111| (l) 108 bsl 4 + small int tag <---------+  |
-         100 |11111111 11111111 11111111 11111011| NIL                                        |
-          96 |00000000 00000000 00000110 11111111| (o) 111 bsl 4 + small int tag <------------+
+             |                                   |
+             |00000000 00000000 00000000 10000001| 128 + list tag  ----------------+
+             |                                   |                                 |
+ stop ->     |              ...                  |                                 |
+                                                                                   |
+                                                                                   |
+ htop ->     |              ...                  |                                 |
+             |                                   |                                 |
+         132 |00000000 00000000 00000000 01111001| 120 + list tag  --------------- | -+
+             |                                   |                                 |  |
+         128 |00000000 00000000 00000110 10001111| 'h' 104 bsl 4 + small int tag <-+  |
+             |                                   |                                    |
+         124 |00000000 00000000 00000000 01110001| 112 + list tag  ------------------ | -+
+             |                                   |                                    |  |
+         120 |00000000 00000000 00000110 01011111| 'e' 101 bsl 4 + small int tag <----+  |
+             |                                   |                                       |
+         116 |00000000 00000000 00000000 01101001| 104 + list tag  --------------------- | -+
+             |                                   |                                       |  |
+         112 |00000000 00000000 00000110 11001111| 'l' 108 bsl 4 + small int tag <-------+  |
+             |                                   |                                          |
+         108 |00000000 00000000 00000000 01100001|  96 + list tag  ------------------------ | -+
+             |                                   |                                          |  |
+         104 |00000000 00000000 00000110 11001111| 'l' 108 bsl 4 + small int tag <----------+  |
+             |                                   |                                             |
+         100 |11111111 11111111 11111111 11111011| NIL                                         |
+             |                                   |                                             |
+          96 |00000000 00000000 00000110 11111111| 'o' 111 bsl 4 + small int tag <-------------+
+             |                                   |
              |                ...                |
+             |                                   |
  heap ->     +-----------------------------------+
-
 
 ----
 
 If you then create a tuple with two instances of the list, all that is repeated is
-the tagged pointer to the list: 00000000000000000000000001000001. The code
+the tagged pointer to the list: `00000000000000000000000010000001`. The code
 
+[source,erlang]
 ----
 L = [104, 101, 108, 108, 111],
 T = {L, L}.
 ----
 
-would result in a memory layout as seen below. That is,
-a boxed header saying that this is a tuple of size 2 and then two
-pointers to the same list.
+would result in a memory layout as seen below, with T
+pointing to a boxed object at address 136, where we find
+an ARITYVAL header saying that this is a tuple of size 2 followed by
+its two elements, both pointing to the same list L at address 128.
 
+[ditaa]
 ----
-ADR VALUE                            DESCRIPTION
-144 00000000000000000000000001000001 128+CONS
-140 00000000000000000000000001000001 128+CONS
-136 00000000000000000000000010000000 2+ARITYVAL
+        ADDR                               BINARY  VALUE + TAG
+             |              ...                  |
+             |                                   |
+             |00000000 00000000 00000000 10001010| 136 + boxed tag  ---+
+             |                                   |                     |
+ stop ->     |              ...                  |                     |
+                                                                       |
+                                                                       |
+ htop ->     |              ...                  |                     |
+             |                                   |                     |
+         144 |00000000 00000000 00000000 10000001| 128 + list tag  --- | ----------+
+             |                                   |                     |           |
+         140 |00000000 00000000 00000000 10000001| 128 + list tag  --- | ----------+
+             |                                   |                     |           |
+         136 |00000000 00000000 00000000 10000000| 2 + ARITYVAL     <--+           |
+             |                                   |                                 |
+         132 |00000000 00000000 00000000 01111001| 120 + list tag  --------------- | -+
+             |                                   |                                 |  |
+         128 |00000000 00000000 00000110 10001111| 'h' 104 bsl 4 + small int tag <-+  |
+             |                                   |                                    |
+             |              ...                  |                                    :
+
 ----
 
 This is nice, since it is cheap to do and uses very little space. But if
 you send the tuple to another process or do any other type of IO, or any
 operations which results in something called a _deep copy_, then the
-data structure is expanded. So if we send out tuple +T+ to another process
-P2 (+pass:[P2 ! T]+) then the heap of T2 will look like in:
+data structure is expanded. So if we send the tuple `T` to another process
+P2 (`pass:[P2 ! T]`) then the heap of T2 will get a tuple where the first
+element points to one copy of the string and the second element to another
+copy, doubling the amount of space used. You can see the result of this
+in the xref:copied_message[section on message passing] further below.
 
-----
- ..
-----
-
+If you have nested shared tuples, this duplication upon deep copying will
+grow exponentially with the level of nesting.
 You can quickly bring down your Erlang node by expanding a highly shared term,
 see <<listing-share,share.erl>>.
 
@@ -657,8 +693,8 @@ size() ->
 ----
 
 You can calculate the memory size of a shared term and the size of the
-expanded size of the term with the functions +erts_debug:size/1+ and
-+erts_debug:flat_size/1+.
+expanded size of the term with the functions `erts_debug:size/1` and
+`erts_debug:flat_size/1`.
 
 [source,erlang]
 ----
@@ -670,6 +706,16 @@ expanded size of the term with the functions +erts_debug:size/1+ and
 For most applications this is not a problem, but you should be aware
 of the problem, which can come up in many situations. A deep copy is
 used for IO, ETS tables, binary_to_term, and message passing.
+
+****
+It is possible to build ERTS with the configuration option
+`--enable-sharing-preserving` which makes the VM discover and preserve
+shared terms in these situations, but it is not enabled by default because
+it makes sending messages slightly slower in the normal case when there is
+no sharing. It has been suggested that this should be the default mode,
+since it prevents some very bad situations even if they do not happen
+regularly. See xref:AP-BuildingERTS[] for how to build Erlang from source.
+****
 
 Let us look in more detail how message passing works.
 
@@ -686,44 +732,51 @@ look like this just before the send in p1/1:
 
 [ditaa]
 ----
-
-    x0       |00000000 00000000 00000000 00100011| Pid 2
-    x1       |00000000 00000000 00000000 01001010| 136 + boxed tag -----------+
-                                                                              |
-                                                                              |
-         ADR                               BINARY  VALUE  +  DESCRIPTION      |
- hend ->     +-------- -------- -------- --------+                            |
-             |              ...                  |                            |
-             |              ...                  |                            |
- stop ->     |                                   |                            |
-                                                                              |
- htop ->     |                                   |                            |
-         144 |00000000 00000000 00000000 01000001| 128+CONS        ---------------+
-         140 |00000000 00000000 00000000 01000001| 128+CONS        ---------------+
-         136 |00000000 00000000 00000000 10000000| 2+ARITYVAL             <---+   |
-         132 |00000000 00000000 00000000 01111001| 120+CONS        -------------- | -+
-         128 |00000000 00000000 00000110 10001111| (h) 104 bsl 4 + small int tag <+  |
-         124 |00000000 00000000 00000000 01110001| 112+CONS        ----------------- | -+
-         120 |00000000 00000000 00000110 01011111| (e) 101 bsl 4 + small int tag <---+  |
-         116 |00000000 00000000 00000000 01110001| 112+CONS        -------------------- | -+
-         112 |00000000 00000000 00000110 11001111| (l) 108 bsl 4 + small int tag <------+  |
-         108 |00000000 00000000 00000000 01110001|  96+CONS        ----------------------- | -+
-         104 |00000000 00000000 00000110 11001111| (l) 108 bsl 4 + small int tag <---------+  |
-         100 |11111111 11111111 11111111 11111011| NIL                                        |
-          96 |00000000 00000000 00000110 11111111| (o) 111 bsl 4 + small int tag <------------+
+         REG
+             |                                   |
+         x0  |00000000 00000000 00000000 00100011| Pid 2
+             |                                   |
+         x1  |00000000 00000000 00000000 10001010| 136 + boxed tag  ------+
+             |                                   |                        |
+                                                                          |
+                                                                          |
+        ADDR                               BINARY  VALUE + TAG            |
+ htop ->     |              ...                  |                        |
+             |                                   |                        |
+         144 |00000000 00000000 00000000 10000001| 128 + list tag  ------ | -------+
+             |                                   |                        |        |
+         140 |00000000 00000000 00000000 10000001| 128 + list tag  ------ | -------+
+             |                                   |                        |        |
+         136 |00000000 00000000 00000000 10000000| 2 + ARITYVAL      <----+        |
+             |                                   |                                 |
+         132 |00000000 00000000 00000000 01111001| 120 + list tag  --------------- | -+
+             |                                   |                                 |  |
+         128 |00000000 00000000 00000110 10001111| 'h' 104 bsl 4 + small int tag <-+  |
+             |                                   |                                    |
+         124 |00000000 00000000 00000000 01110001| 112 + list tag  ------------------ | -+
+             |                                   |                                    |  |
+         120 |00000000 00000000 00000110 01011111| 'e' 101 bsl 4 + small int tag <----+  |
+             |                                   |                                       |
+         116 |00000000 00000000 00000000 01101001| 104 + list tag  --------------------- | -+
+             |                                   |                                       |  |
+         112 |00000000 00000000 00000110 11001111| 'l' 108 bsl 4 + small int tag <-------+  |
+             |                                   |                                          |
+         108 |00000000 00000000 00000000 01100001|  96 + list tag  ------------------------ | -+
+             |                                   |                                          |  |
+         104 |00000000 00000000 00000110 11001111| 'l' 108 bsl 4 + small int tag <----------+  |
+             |                                   |                                             |
+         100 |11111111 11111111 11111111 11111011| NIL                                         |
+             |                                   |                                             |
+          96 |00000000 00000000 00000110 11111111| 'o' 111 bsl 4 + small int tag <-------------+
+             |                                   |
              |                ...                |
- heap ->     +-----------------------------------+
-
-
-P2
-
 
 ----
 
-Then P1 start sending the message M to P2. It (through the code in
-erl_message.c) first calculates the flat size of M (which in our example is
+Then P1 starts sending the message M to P2. The code in
+`erl_message.c` first calculates the flat size of M (which in our example is
 23 words)footnote:[We ignore tracing here which will add a trace token
-to the size of the message, and always use a heap fragment.]. 
+to the size of the message, and always use a heap fragment.].
 Then (in a SMP system) if it can take a lock on P2 and there is enough
 room on the heap of P2 it will copy the message to the heap of P2.
 
@@ -735,55 +788,86 @@ having the size of 1 Eterm] which after initialization will look like:
 
 ----
 erl_heap_fragment:
-    ErlHeapFragment* next;	  NULL
+    ErlHeapFragment* next;	    NULL
     ErlOffHeap off_heap:
-      erl_off_heap_header* first; NULL
-      Uint64 overhead;               0
-    unsigned alloc_size;	    23
-    unsigned used_size;             23
-    Eterm mem[1];		     ?
+      erl_off_heap_header* first;   NULL
+      Uint64 overhead;                 0
+    unsigned alloc_size;	      23
+    unsigned used_size;               23
+    Eterm mem[1];		       ?
       ... 22 free words
 ----
 
-Then the message is copied into the heap fragment:
+Then the message is copied into the `mem` part of the heap fragment, and
+the `first` pointer is updated (note that memory addresses increase
+downwards in this picture, to match the struct layout):
 
+[[copied_message]]
+[ditaa]
 ----
 erl_heap_fragment:
-    ErlHeapFragment* next;	  NULL
-    ErlOffHeap off_heap:
-      erl_off_heap_header* first; Boxed tag+&amp;mem+2*WS-+
-      Uint64 overhead;               0                |
-    unsigned alloc_size;	    23                |
-    unsigned used_size;             23                |
-    Eterm mem:                    2+ARITYVAL   <------+
-                                  &amp;mem+3*WS+1  ---+
-                                  &amp;mem+13*WS+1 ------+
-                                  (H*16)+15    <--+  |
-                                  &amp;mem+5*WS+1  --+   |
-                                  (e*16)+15    <-+   |
-                                  &amp;mem+7*WS+1  ----| |
-                                  (l*16)+15    <---+ |
-                                  &amp;mem+9*WS+1  ---+  |
-                                  (l*16)+15    <--+  |
-                                  &amp;mem+11*WS+1 ----+ |
-                                  (o*16)+15    <---+ |
-                                  NIL                |
-                                  (H*16)+15    <-----+
-                                  &amp;mem+15*WS+1 --+
-                                  (e*16)+15    <-+
-                                  &amp;mem+17*WS+1 ----|
-                                  (l*16)+15    <---+
-                                  &amp;mem+19*WS+1 ---+
-                                  (l*16)+15    <--+
-                                  &amp;mem+21*WS+1 ----+
-                                  (o*16)+15    <---+
-                                  NIL</pre>
+           +--------------------+
+           |                    |
+           |       ...          |
+           |                    |
+ first ->  |         mem + BOXED| ----+
+           |       ...          |     |
+           |                    |     |
+   mem ->  |          2+ARITYVAL|  <--+
+           |                    |
+      +1w  |     3w + mem + CONS|  ---+
+           |                    |     |
+      +2w  |    13w + mem + CONS| --- | --+
+           |                    |     |   |
+      +3w  |'H' bsl 4 + SMALLINT|  <--+   |
+           |                    |         |
+      +4w  |     5w + mem + CONS|  ---+   |
+           |                    |     |   |
+      +5w  |'e' bsl 4 + SMALLINT|  <--+   |
+           |                    |         |
+      +6w  |     7w + mem + CONS|  ---+   |
+           |                    |     |   |
+      +7w  |'l' bsl 4 + SMALLINT|  <--+   |
+           |                    |         |
+      +8w  |     9w + mem + CONS|  ---+   |
+           |                    |     |   |
+      +9w  |'l' bsl 4 + SMALLINT|  <--+   |
+           |                    |         |
+     +10w  |    11w + mem + CONS|  ---+   |
+           |                    |     |   |
+     +11w  |'o' bsl 4 + SMALLINT|  <--+   |
+           |                    |         |
+     +12w  |                 NIL|         |
+           |                    |         |
+     +13w  |'H' bsl 4 + SMALLINT|  <------+
+           |                    |
+     +14w  |    15w + mem + CONS|  ---+
+           |                    |     |
+     +15w  |'e' bsl 4 + SMALLINT|  <--+
+           |                    |
+     +16w  |    17w + mem + CONS|  ---+
+           |                    |     |
+     +17w  |'l' bsl 4 + SMALLINT|  <--+
+           |                    |
+     +18w  |    19w + mem + CONS|  ---+
+           |                    |     |
+     +19w  |'l' bsl 4 + SMALLINT|  <--+
+           |                    |
+     +20w  |    21w + mem + CONS|  ---+
+           |                    |     |
+     +21w  |'o' bsl 4 + SMALLINT|  <--+
+           |                    |
+     +22w  |                 NIL|
+           |                    |
+           +--------------------+
+
 ----
 
-In either case a new mbox (+ErlMessage+) is allocated, a lock
- (+ERTS_PROC_LOCK_MSGQ+) is taken on the receiver and the message
+In either case a new mbox (`ErlMessage`) is allocated, a lock
+ (`ERTS_PROC_LOCK_MSGQ`) is taken on the receiver and the message
  on the heap or in the new heap fragment is linked into the mbox.
 
+[source,c]
 ----
  erl_mesg {
     struct erl_mesg* next = NULL;
@@ -793,9 +877,9 @@ In either case a new mbox (+ErlMessage+) is allocated, a lock
 
 ----
 
-Then the mbox is linked into the in message queue (+msg_inq+) of the
-receiver, and the lock is released. Note that +msg_inq.last+ points to
-the +next+ field of the last message in the queue. When a new mbox is
+Then the mbox is linked into the in message queue (`msg_inq`) of the
+receiver, and the lock is released. Note that `msg_inq.last` points to
+the `next` field of the last message in the queue. When a new mbox is
 linked in this next pointer is updated to point to the new mbox, and
 the last pointer is updated to point to the next field of the new
 mbox.
@@ -897,7 +981,7 @@ introductory chapter. This might lead to huge memory usage.
 
 The solution in this case, when you know you only want one small
 part of a large binary and you want to have the small part hanging
-around for some time, is to use +binary:copy/1+. This function
+around for some time, is to use `binary:copy/1`. This function
 is only used for its side effect, which is to actually copy
 the sub binary out of the real binary removing the reference to
 the larger binary and therefore hopefully letting it be garbage
@@ -952,8 +1036,8 @@ behaves. The code will generate a string which is shared by two
 elements of a cons and a tuple, the tuple will the be eliminated
 resulting in garbage. After the GC there should only be one string on
 the heap. That is, first we generate the term 
-+{["Hello","Hello"], "Hello"}+ (sharing the same string "Hello" in 
-all instances. Then we just keep the term +["Hello","Hello"]+ when
+`+{["Hello","Hello"], "Hello"}+` (sharing the same string `"Hello"` in 
+all instances. Then we just keep the term `+["Hello","Hello"]+` when
 triggering a GC.
 
 NOTE: We will take the opportunity to go through how you, on a
@@ -1074,7 +1158,7 @@ allocating a new heap (_to space_). By stepping into the GC code in the
 debugger you can see how this is done. I will not go through the
 details here. After a number of steps the execution will reach the
 point where all terms in the root set are copied to the new heap. This
-starts around (depending on version) line 1272 with a +while+ loop in
+starts around (depending on version) line 1272 with a `while` loop in
 erl_gc.c.
 
 In our case the root is a cons pointing to address 0x00007f95666597f0
@@ -1126,8 +1210,8 @@ backward pointers to the head and the tail of the cons in the _from space_.
 
 When the collector is done with the root set the _to space_ contains
 backward pointers to all still live terms. At this point the collector
-starts sweeping the _to space_. It uses two pointers +n_hp+ pointing to
-the bottom of the unseen heap and +n_htop+ pointing to the top of the heap.
+starts sweeping the _to space_. It uses two pointers `n_hp` pointing to
+the bottom of the unseen heap and `n_htop` pointing to the top of the heap.
 
 ----
 n_htop:
@@ -1136,10 +1220,10 @@ n_hp    0x00007f67371445b0 [0x00007f6737145909] cons -> 0x00007f6737145908
 ----
 
 
-The GC will then look at the value pointed to by +n_hp+, in this case a
+The GC will then look at the value pointed to by `n_hp`, in this case a
 cons pointing back to the _from space_. So it moves that cons to the to
 space, incrementing n_htop to make room for the new cons, and
-incrementing +n_hp+ to indicate that the first cons is seen.
+incrementing `n_hp` to indicate that the first cons is seen.
 
 ----
 from space:
@@ -1344,9 +1428,9 @@ Generations..
 
 ----
 
- +high_water, old_hend, old_htop, old_heap,
+ `high_water, old_hend, old_htop, old_heap,
  gen_gcs, max_gen_gcs, off_heap,  mbuf, mbuf_sz, psd, bin_vheap_sz,
- bin_vheap_mature, bin_old_vheap_sz, bin_old_vheap+.
+ bin_vheap_mature, bin_old_vheap_sz, bin_old_vheap`.
 
 //  ==== TODO
 //
@@ -1395,5 +1479,3 @@ TODO
 TODO
 ==== Constants
 TODO
-
-
