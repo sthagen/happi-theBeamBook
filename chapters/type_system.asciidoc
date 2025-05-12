@@ -245,7 +245,18 @@ is a process identifier and it points to a process. The process does
 not reside on the heap of any process but is handled by the PCB.
 A ((port)) works in much the same way.
 
-//  (TODO: MORE ON THIS REF!)
+A PID immediate is packed into a single machine word: the two least
+significant bits are the primary tag `11`, the next two bits are the
+subtype `00`, and the remaining high-order bits hold the PID value.
+On a 32-bit system those 28 bits are subdivided into a 15-bit process
+index (an offset into the process table), a 13-bit serial (to
+distinguish reused indices), and a small creation field. When you
+print a PID in the shell it appears as `<Node.Index.Serial>`, where
+the creation (Node) disambiguates across restarts. Ports use the same
+layout (subtype `01`), splitting their high-order bits into a port
+number and creation. Because the entire reference lives in one word,
+equality (and inequality) tests on PIDs and ports reduce to a single
+integer comparison.
 
 There are two types of integers in ERTS, ((small integers)) and
 ((bignums)). Small integers fit in one machine word minus four tag bits,
@@ -335,6 +346,9 @@ called _((proper lists))_. Erlang is however dynamically typed and the tail
 is allowed to be any term, as in `[1|2]`. These are called _((improper
 lists))_ and will be a surprise to any functions that expect a proper list
 as input, when they do not find a `[]` as the last element.
+
+==== Lists on 64-Bit Machines  
+On 64-bit systems each cons cell is two full words (one for the head pointer, one for the tail pointer), aligned to 8 bytes, with no separate header. The list tag in the low two bits of each word still identifies the cell as a cons. Because there’s no header word per cell, Erlang gains a 33% space savings versus a boxed tuple, at the cost of one extra pointer dereference per element.  
 
 === Strings
 
@@ -428,6 +442,11 @@ byte encoding for strings. You should generally not need to worry about
 strings in those cases -- it's the on-heap representation that you should
 avoid hanging on to.
 
+==== IO Lists  
+IO lists extend erlang strings by allowing binaries, nested lists, strings, and integers to be concatenated without flattening. Each element is either a binary chunk or a list node, and the driver outputs them in sequence with minimal copying.  
+
+
+
 === Boxed Terms
 
 All other terms(((boxed terms))) on the heap start with a _((header
@@ -515,19 +534,46 @@ collector does not need to inspect the payload. It is therefore possible to
 use a different storage strategy tailored to them; in particular, reference
 counting binaries will never run into the problem of circular references.
 
-// TODO: draw a picture of binaries and their tags.
+.BINARY LAYOUT AND TAGGING
+[ditaa]
+```
+  Heap/Refc Binary Header Word (32-bit view)
+  +------------------------------------------+
+  |  20-bit or 28-bit length/offset field    |
+  +----------------+-------------+-----------+
+  | subtag (4-bit) | primary tag | padding?  |
+  +----------------+-------------+-----------+
+```
+
+* primary tag `00` indicates a boxed term header.
+* subtag `1001` marks a heap binary (payload on heap).
+* subtag `1000` marks a reference-counted binary (ProcBin).
+
+Following the header:
+* For *heap binaries*, the binary payload bytes follow immediately.
+* For *refc binaries*, the header is followed by a ProcBin struct.
+
+*Sub binaries* (subtag `1010`) are views into an existing binary.
+They store a header word with length and offset fields, followed by two
+machine words. This avoids copying payload data when slicing or matching parts of a binary.
+
+*Match contexts* (subtag `0001`, `BINARY_AGGREGATE`) are used by the
+binary pattern-matching engine. They reference segments of one or more
+enclosing binaries without allocating new payload space:
+* They contain a header word with the total number of segments.
+* They include an array of `{pointer, length}` tuples pointing into the
+  original binaries.
+
+This allows efficient iteration without flattening or copying data.
 
 We will talk more about binaries in xref:CH-Memory[].
 
 ==== Bignums
-Integers that do not fit in a small integer (word size - 4 bits) are
-stored on the heap as so-called _((bignums))_ (or _((arbitrary precision integers))_).
-A bignum has a header word followed by a number of words which encode the
-integer. The sign part of the bignum tag (`s`) in the header encodes the
-sign of the number (s=0 for positive numbers, and s=1 for negative
-numbers).
+Any integer too large to fit into a small immediate (word size minus four tag bits) is represented as a _bignum_, which is a boxed term whose header word encodes both its sign and the number of “limb” words that follow. The header’s primary tag (`00`) marks it as a heap‐allocated header, the four‐bit subtag (`001`) identifies it as a bignum, and the highest bit of that subtag carries the sign (0 = positive, 1 = negative). Each subsequent limb is a full machine word holding a slice of the integer in base 2^D_EXP (typically 28 bits on 32-bit builds, 60 bits on 64-bit builds), arranged little-endian (least significant limb first).
 
-// TODO: Describe bignum encoding. (And arithmetic ?)
+Multi-precision arithmetic operates directly on these limb arrays. Addition and subtraction are implemented by scanning limbs word-by-word with carry or borrow propagation (`I_add`/`I_sub`), emitting a result limb array whose length may grow by one if there is a final carry. Multiplication uses either the quadratic schoolbook algorithm (`I_mul`) for small limb counts or the Karatsuba divide-and-conquer method (`I_mul_karatsuba`) when operand lengths exceed a threshold, with intermediate double-precision products split into high and low halves. Division and remainder use Knuth’s Algorithm D (`I_div`/`I_rem`) to compute quotient and remainder limb arrays, adjusting the result sign according to operand signs.
+
+Internally each limb is an **`ErtsDigit`**, and you access the limb array of a bignum via the `BIG_V(xp)` macro, which yields an `ErtsDigit*` pointer to the least significant word. Individual limbs are read or written with `BIG_DIGIT(xp, i)` (0-based index, little-endian). All of the core routines in **big.c**—for instance, `I_add`, `I_sub`, `I_mul`, `I_mul_karatsuba`, `I_div`, and `I_rem`—operate directly on these `ErtsDigit*` arrays, handling carry/borrow, multi-precision multiplies, and long-division steps. Once the result digits are computed, `big_norm` recomputes the boxed header (tag, arity, sign) and may even reintegrate the result as a small immediate if it fits in the tag bits.
 
 NOTE: While bignums resemble binaries in that they both are just "`chunks
 of bytes`", bignums are always stored on the heap in their entirety, and
@@ -563,15 +609,13 @@ heap.
 
 The reference number is `(Data2 bsl 50) + (Data1 bsl 18) + Data0`.
 
-.Outline
-****
+==== Floats  
+Erlang floats are boxed heap terms tagged with the `FLONUM` subtag. Each float occupies two machine words: a header word (primary tag `00`, subtag `0110`) and a 64-bit IEEE 754 payload word. The emulator treats floats as opaque “boxed” values for garbage‐collection and comparison, using native CPU instructions for arithmetic when available, and falling back to software routines otherwise.  
 
-*TODO*
+==== Records  
+Records are a compile-time convenience built on tuples: a record of arity N is simply an N-element tuple with the first element an atom naming the record. Access and update macros translate into fixed-index tuple lookups or `setelement/3` calls. Because the tuple header (primary tag `00`, subtag `0000`) encodes the arity, record size and field offsets are known at runtime without extra metadata.  
 
- The implementation of floats,  ports, pids. Strings as lists, IO lists,
- lists on 64-bit machines. Binaries, sub binaries, and copying. Records.
+=== Conclusion
 
- Possibly: The half-word machine. Sharing and deep copy. (or this will be in GC)
-
- Outro/conclusion
-****
+In this chapter we have explored how Erlang’s dynamic type system is implemented in the ERTS, covering the tagging scheme that unifies immediates and boxed terms for efficient runtime type checks and comparisons. We saw how the underlying tag bits and heap layouts reflect Erlang’s strong yet dynamic typing model. Understanding these encodings will make it easier
+to grasp the later chapters on memory allocation and garbage collection, where we will examine how boxed terms are managed on the process heap.
