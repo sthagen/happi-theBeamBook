@@ -52,7 +52,7 @@ you can just ignore the meta text about how to inspect the system and
 just look at the diagrams and the explanations of how the GC works.
 In xref:Using-GDB[] we will go through how to use gdb to inspect the
 system in detail. Here we use some of our own helper scripts that
-unfortunately has been lost in time. 
+unfortunately have been lost to time. 
 
 [source,erlang]
 ----
@@ -426,7 +426,7 @@ The third thing to note is that sharing is preserved which is really
 important otherwise we might end up using more space after a GC than
 before.
 
-Here's an expanded explanation about generations, using the additional information from your document:
+Here's an expanded explanation about generations:
 
 === Generations in Erlang's Garbage Collection
 

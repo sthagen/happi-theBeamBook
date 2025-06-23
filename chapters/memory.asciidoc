@@ -69,7 +69,7 @@ A program's memory layout looks something like this:
 Even though this picture might look daunting it is still a
 simplification. (For a full understanding of the memory subsystem read
 a book like "Understanding the Linux Kernel" or "Linux System
-Programming") What I want you to take away from this is that there are
+Programming".) What I want you to take away from this is that there are
 two types of dynamically allocatable memory: the heap and memory
 mapped segments. I will try to call this heap the _C-heap_ from now
 on, to distinguish it from an Erlang process heap. I will call a
@@ -659,7 +659,7 @@ end up here. Key points to keep in mind:
   usage helps catch these drips.
 
 Though developers rarely manipulate `driver_alloc` directly, it's wise to
-monitor this allocator in production environments, especially if your 
+monitor this allocator in production environments, especially if you 
 are using NIFs.
 
 ==== The short lived allocator: sl_alloc
@@ -1376,7 +1376,7 @@ needed.
 
 ===== Reference Counting
 
-The fourth type.  large binaries or _refc binaries_ on the other hand
+The fourth type, large binaries or _refc binaries_, on the other hand,
 are partially stored outside of the process heap and they are
 reference counted.
 
@@ -1392,7 +1392,7 @@ reference count of the binary by one. All ProcBin objects on a
 process heap are linked together in a linked list. After a
 GC pass this linked list is traversed and the reference count
 of the binary is decreased with one for each ProcBin that
-has deceased. If the reference count of the refc binary
+has died. If the reference count of the refc binary
 reaches zero that binary is deallocated.
 
 Having large binaries reference counted and not copied by send or

@@ -8,7 +8,7 @@
 
 === Transforming from Generic to Specific instructions
 
-The BEAM loader does not just take the external beam format and writes
+The BEAM loader does not just take the external beam format and write
 it to memory. It also does a number of transformations on the code
 and translates from the external (generic) format to the internal
 (specific) format.
@@ -338,7 +338,7 @@ efficient and happens when a group of close together integers are used as the
 value to select on. If not all values are present, the jump table is padded with
 extra fail label slots.
 
-select_val2:: Used when only two values are to be selected upon and they to not
+select_val2:: Used when only two values are to be selected upon and they do not
 fit in a jump table.
 
 select_val_lins:: Do a linear search of the sorted atoms or integers. This is
@@ -352,5 +352,5 @@ When a literal is loaded and used as an argument to any of the bifs or instructi
 that need a hashed value of the literal, instead of hashing the literal value
 every time, the hash is created by the loader and used by the instructions.
 
-Examples of code using this technique is maps instructions and also the process
+Examples of code using this technique are maps instructions and the process
 dictionary bifs.
