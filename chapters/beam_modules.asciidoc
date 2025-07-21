@@ -210,7 +210,7 @@ The chunk named `Code` contains the beam code for the module and is mandatory. T
 
 [source,erlang]
 ----
-ImportChunk = <<
+CodeChunk = <<
   ChunkName:4/unit:8 = "Code",
   ChunkSize:32/big,
   SubSize:32/big,
@@ -426,7 +426,7 @@ We can parse the chunk like this:
 [source,erlang]
 ----
 parse_chunks([{"LitT", _ChunkSize,
-              <<_CompressedTableSize:32, Compressed/binary>>}
+              <<_UnCompressedTableSize:32, Compressed/binary>>}
              | Rest], Acc) ->
     <<_NumLiterals:32,Table/binary>> = zlib:uncompress(Compressed),
     Literals = parse_literals(Table),
