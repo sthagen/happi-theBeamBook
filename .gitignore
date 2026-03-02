@@ -27,3 +27,11 @@ images/diag-*.png
 site
 .asciidoctor
 .DS_Store
+/VERSION
+/images/cover.jpg
+/vendor/
+/.bundle/
+/Gemfile.lock
+CLAUDE.local.md
+.mcp.json
+/backlog/
